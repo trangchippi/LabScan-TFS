@@ -1,0 +1,1200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>LabScan — Inventory Assistant</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#f4f2ec;--surface:#fff;--surface2:#f0ede5;
+    --border:#d4cfc4;--border-strong:#a8a097;
+    --text:#1a1814;--text-2:#5a5650;--text-3:#8a8680;
+    --accent:#1a6b3c;--accent-light:#e8f5ee;
+    --accent-2:#b35a00;--accent-2-light:#fff3e8;
+    --danger:#c0392b;
+    --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
+    --radius:6px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;font-size:15px}
+
+  header{background:var(--text);color:#f4f2ec;padding:0 16px;height:50px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+  .logo{font-family:var(--mono);font-size:17px;font-weight:600;letter-spacing:.05em}
+  .logo span{color:#6fcf97}
+  .header-tag{font-family:var(--mono);font-size:10px;color:#6a7070;letter-spacing:.08em}
+
+  .main{max-width:600px;margin:0 auto;padding:14px;display:flex;flex-direction:column;gap:14px}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+
+  .panel-header{background:var(--surface2);border-bottom:1px solid var(--border);padding:11px 14px;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--text-2);display:flex;align-items:center;justify-content:space-between;gap:8px;-webkit-user-select:none;user-select:none;touch-action:manipulation;cursor:pointer}
+  .panel-header-left{display:flex;align-items:center;gap:8px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex-shrink:0;display:inline-block}
+  .collapse-icon{font-size:13px;color:var(--text-3);transition:transform .25s;line-height:1}
+  .collapse-icon.open{transform:rotate(180deg)}
+  .collapsible-body{overflow:hidden;-webkit-transition:max-height .35s ease,opacity .25s ease;transition:max-height .35s ease,opacity .25s ease;max-height:0;opacity:0;will-change:max-height}
+  .collapsible-body.open{max-height:1200px;opacity:1}
+
+  /* API */
+  .api-body{padding:14px}
+  .field-label{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:7px}
+  .api-key-row{display:flex;gap:8px}
+  .api-key-row input{flex:1;min-width:0;padding:11px 12px;border:1px solid var(--border);border-radius:var(--radius);font-family:var(--mono);font-size:14px;outline:none;background:var(--surface)}
+  .api-key-row input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(26,107,60,.1)}
+  .api-key-note{font-size:12px;color:var(--text-3);margin-top:9px;line-height:1.65;font-family:var(--mono)}
+  .api-saved-bar{display:none;padding:9px 14px;background:var(--accent-light);font-family:var(--mono);font-size:12px;color:var(--accent);align-items:center;gap:7px;border-bottom:1px solid #b0d8c0}
+  .api-saved-bar.show{display:flex}
+
+  /* Photo grid — 2×2 for first screen, grows after */
+  .photo-section{padding:14px;display:flex;flex-direction:column;gap:10px}
+  .photo-hint{font-family:var(--mono);font-size:11px;color:var(--text-3);text-align:center}
+  .photo-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:28px 12px;border:2px solid var(--border);border-radius:var(--radius);background:var(--surface2);cursor:pointer;transition:all .15s;font-family:var(--sans);font-size:14px;font-weight:500;color:var(--text-2);position:relative;overflow:hidden;-webkit-user-select:none;user-select:none;width:100%}
+  .photo-btn input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;font-size:16px}
+  .photo-btn:active{border-color:var(--accent);background:var(--accent-light);color:var(--accent)}
+  .photo-btn-icon{font-size:36px;line-height:1;pointer-events:none}
+  .photo-btn span:last-child{pointer-events:none}
+
+  .status-bar{padding:9px 12px;border-radius:var(--radius);font-family:var(--mono);font-size:12px;display:none;align-items:center;gap:8px}
+  .status-bar.scanning{display:flex;background:var(--accent-2-light);color:var(--accent-2);border:1px solid #f0d0b0}
+  .status-bar.done{display:flex;background:var(--accent-light);color:var(--accent);border:1px solid #b0d8c0}
+  .status-bar.error{display:flex;background:#fdf0ee;color:var(--danger);border:1px solid #e8c4c0}
+  .spinner{width:13px;height:13px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .quota-note{display:none;padding:12px 14px;background:#fff8f0;border:1px solid #f0d0b0;border-radius:var(--radius);font-size:12px;color:var(--accent-2);line-height:1.7;font-family:var(--mono)}
+  .quota-note a{color:var(--accent-2)}
+
+  .scan-btn{width:100%;padding:15px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-family:var(--sans);font-size:16px;font-weight:600;cursor:pointer;transition:background .15s;display:flex;align-items:center;justify-content:center;gap:8px}
+  .scan-btn:active{background:#145530}
+  .scan-btn:disabled{background:var(--border-strong);cursor:not-allowed}
+
+  /* Form */
+  .form-area{padding:14px;display:flex;flex-direction:column;gap:12px}
+  .field{display:flex;flex-direction:column;gap:5px}
+  .field label{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3)}
+  .field input,.field textarea,.field-select{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:var(--radius);font-family:var(--sans);font-size:16px;color:var(--text);background:var(--surface);outline:none;transition:border-color .15s;-webkit-appearance:none;appearance:none}
+  .field-select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%238a8680' d='M6 8L0 0h12z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;cursor:pointer}
+  .field input:focus,.field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(26,107,60,.1)}
+  .field textarea{resize:vertical;min-height:70px;font-family:var(--sans)}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .confidence-badge{display:inline-block;font-family:var(--mono);font-size:9px;padding:2px 5px;border-radius:2px;margin-left:4px;vertical-align:middle;font-weight:700;letter-spacing:.05em}
+  .conf-high{background:var(--accent-light);color:var(--accent)}
+  .conf-med{background:var(--accent-2-light);color:var(--accent-2)}
+  .conf-low{background:#fdf0ee;color:var(--danger)}
+  .add-btn{width:100%;padding:15px;background:var(--text);color:#f4f2ec;border:none;border-radius:var(--radius);font-family:var(--sans);font-size:16px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+  .add-btn:active{background:#333}
+
+  /* Inventory */
+  .inv-toolbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border)}
+  .inv-toolbar-left{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--text-2)}
+  .inv-toolbar-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .count-badge{background:var(--accent);color:#fff;font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px}
+  .count-badge.zero{background:var(--border-strong)}
+  .inv-empty{padding:40px 20px;text-align:center;color:var(--text-3);font-family:var(--mono);font-size:12px;line-height:1.8}
+  .inv-empty .icon{font-size:28px;margin-bottom:8px}
+  .inv-card{padding:12px 14px;border-bottom:1px solid var(--border)}
+  .inv-card:last-child{border-bottom:none}
+  .inv-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
+  .inv-num{font-family:var(--mono);font-size:11px;color:var(--text-3);margin-bottom:2px}
+  .inv-name{font-weight:600;font-size:15px}
+  .inv-tags{display:flex;flex-wrap:wrap;gap:5px}
+  .inv-tag{display:inline-flex;align-items:center;gap:3px;font-family:var(--mono);font-size:11px;padding:3px 7px;border-radius:3px;background:var(--surface2);border:1px solid var(--border);color:var(--text-2)}
+  .inv-tag .tag-key{color:var(--text-3)}
+  .inv-note{font-size:12px;color:var(--text-2);margin-top:6px;line-height:1.5}
+  .inv-remove{background:none;border:none;color:var(--text-3);font-size:17px;cursor:pointer;padding:2px 4px;border-radius:3px;flex-shrink:0;line-height:1}
+  .inv-remove:active{background:#fdf0ee;color:var(--danger)}
+
+  /* Pagination */
+  .pagination{display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 14px;border-top:1px solid var(--border);font-family:var(--mono);font-size:12px;color:var(--text-2)}
+  .page-btn{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:5px 10px;font-family:var(--mono);font-size:12px;cursor:pointer;color:var(--text-2)}
+  .page-btn:active,.page-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .page-btn:disabled{opacity:.4;cursor:not-allowed}
+
+  /* tiny toolbar buttons */
+  .tb-btn{display:inline-flex;align-items:center;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:5px 9px;font-family:var(--mono);font-size:10px;font-weight:600;cursor:pointer;color:var(--text-2);white-space:nowrap}
+  .tb-btn:active{background:var(--surface2)}
+  .tb-btn.active{background:var(--accent-light);border-color:var(--accent);color:var(--accent)}
+  .btn-danger-sm{display:inline-flex;align-items:center;background:none;border:1px solid #e8c4c0;color:var(--danger);font-size:11px;font-family:var(--mono);font-weight:600;padding:5px 9px;border-radius:var(--radius);cursor:pointer}
+  .btn-danger-sm:active{background:#fdf0ee}
+
+  /* Export */
+  .export-area{padding:14px;display:flex;flex-direction:column;gap:12px}
+  .export-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .export-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:14px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);cursor:pointer;font-family:var(--sans);font-size:12px;font-weight:500;color:var(--text-2);transition:all .12s}
+  .export-btn:active{background:var(--surface2);border-color:var(--accent);color:var(--accent)}
+  .export-btn-icon{font-size:22px}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:11px 16px;border-radius:var(--radius);border:1px solid var(--border);font-family:var(--sans);font-size:14px;font-weight:600;cursor:pointer;background:var(--surface);color:var(--text);white-space:nowrap;flex-shrink:0;transition:all .12s}
+  .btn:active{background:var(--surface2)}
+
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(10px);background:var(--text);color:#f4f2ec;padding:10px 22px;border-radius:20px;font-family:var(--mono);font-size:12px;font-weight:500;opacity:0;transition:all .25s;z-index:999;pointer-events:none;white-space:nowrap}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media(min-width:700px){
+    .main{max-width:1020px;flex-direction:row;align-items:flex-start;padding:20px;gap:18px}
+    .left-col{width:370px;flex-shrink:0;display:flex;flex-direction:column;gap:14px}
+    .right-col{flex:1;display:flex;flex-direction:column;gap:14px}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo" id="logoBtn" style="cursor:default">Lab<span>Scan</span></div>
+  <div class="header-tag" id="providerTag">AI · VISION</div>
+</header>
+<div id="debugBanner" style="display:none;background:#b35a00;color:#fff;font-family:monospace;font-size:11px;padding:6px 10px;word-break:break-all;line-height:1.5;"></div>
+
+<div class="main">
+<div class="left-col">
+
+  <!-- API KEY -->
+  <div class="panel" id="apiPanel">
+    <div class="panel-header" style="cursor:default">
+      <div class="panel-header-left"><span class="dot"></span><span>API KEY</span></div>
+      <span id="apiStatusChip" style="font-size:10px;color:var(--text-3);font-family:var(--mono);">NOT SET</span>
+    </div>
+    <div id="apiSavedView" style="display:none;padding:10px 14px;background:var(--accent-light);border-bottom:1px solid #b0d8c0;align-items:center;justify-content:space-between;gap:8px;">
+      <span style="font-family:var(--mono);font-size:12px;color:var(--accent);">&#10003; Key saved</span>
+      <button type="button" onclick="showApiInput()" style="font-family:var(--mono);font-size:11px;background:none;border:1px solid var(--accent);color:var(--accent);border-radius:4px;padding:4px 10px;cursor:pointer;">Change</button>
+    </div>
+    <div id="apiInputView" style="padding:14px;">
+      <div class="field-label">API Key</div>
+      <div style="margin-top:7px;display:flex;flex-direction:column;gap:10px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;">
+          <div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text-3);margin-bottom:4px;letter-spacing:.08em;">MODEL</div>
+            <select id="modelSelect" class="field-select" style="width:100%;font-size:13px;padding:9px 8px;">
+              <optgroup label="OpenAI GPT-4.1">
+                <option value="gpt-4.1">GPT-4.1</option>
+                <option value="gpt-4.1-mini" selected>GPT-4.1 mini ★</option>
+                <option value="gpt-4.1-nano">GPT-4.1 nano</option>
+              </optgroup>
+              <optgroup label="OpenAI GPT-5">
+                <option value="gpt-5">GPT-5</option>
+                <option value="gpt-5-mini">GPT-5 Mini</option>
+                <option value="gpt-5-nano">GPT-5 Nano</option>
+                <option value="gpt-5.4">GPT-5.4 (latest)</option>
+              </optgroup>
+              <optgroup label="Google (free tier)">
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+              </optgroup>
+            </select>
+          </div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text-3);line-height:1.5;padding-top:16px;">
+            Model auto-selects<br>based on key type
+          </div>
+        </div>
+        <input type="text" id="apiKey" placeholder="Paste API key here (AIza... or sk-...)" autocomplete="off" oninput="autoSelectModel(this.value)" autocorrect="off" autocapitalize="off" spellcheck="false"
+          style="width:100%;padding:13px 12px;border:2px solid var(--border);border-radius:6px;font-family:monospace;font-size:15px;outline:none;background:#fff;-webkit-appearance:none;box-sizing:border-box;">
+        <button type="button" id="apiKeySaveBtn"
+          style="width:100%;padding:15px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:16px;font-weight:700;cursor:pointer;-webkit-appearance:none;touch-action:manipulation;"
+          onclick="saveKey()">&#10003; Save API Key</button>
+      </div>
+      <div style="font-size:12px;color:var(--text-3);margin-top:9px;line-height:1.7;font-family:var(--mono);">
+        &#128274; Your API key and all inventory data are stored <strong>locally in your browser only</strong>.<br>
+        Nothing is sent to any server except the AI vision API you choose to use.
+      </div>
+    </div>
+  </div>
+
+  <!-- SCAN -->
+  <div class="panel">
+    <div class="panel-header" style="cursor:default">
+      <div class="panel-header-left"><span class="dot" style="background:var(--accent-2)"></span>SCAN ITEM</div>
+      <span style="font-size:10px;color:var(--text-3);font-family:var(--mono)">UP TO 4 PHOTOS</span>
+    </div>
+    <div class="photo-section">
+
+      <!-- Photo thumbnails strip -->
+      <div id="photoStrip" style="display:none;flex-wrap:wrap;gap:8px;"></div>
+
+      <!-- Add photo buttons -->
+      <div id="photoAddBtns" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <label class="photo-btn">
+          <input type="file" accept="image/*" capture="environment" onchange="addPhotosFromInput(this.files);this.value='';">
+          <span class="photo-btn-icon">&#128247;</span>
+          <span>Take Photos</span>
+        </label>
+        <label class="photo-btn">
+          <input type="file" accept="image/*" multiple onchange="addPhotosFromInput(this.files);this.value='';">
+          <span class="photo-btn-icon">&#128444;&#65039;</span>
+          <span>Choose Files</span>
+        </label>
+      </div>
+      <div class="photo-hint" id="photoHint">Select 1&ndash;4 photos at once &mdash; great for curved labels</div>
+
+      <div class="status-bar" id="statusBar">
+        <div class="spinner" id="statusSpinner"></div>
+        <span id="statusText"></span>
+      </div>
+      <div class="quota-note" id="quotaNote">
+        &#9888; <strong>Quota or rate limit reached.</strong><br>
+        1. <strong>Wait and retry</strong> &mdash; free tiers reset daily<br>
+        2. <strong>Check your API usage</strong> in your provider's dashboard<br>
+        3. <strong>Enable billing</strong> on your API account for higher limits
+      </div>
+      <button type="button" class="scan-btn" id="scanBtn" onclick="scanImage()" disabled style="touch-action:manipulation;">&#128302; Scan &amp; Extract Info</button>
+    </div>
+  </div>
+
+  <!-- FORM -->
+  <div class="panel">
+    <div class="panel-header" style="cursor:default">
+      <div class="panel-header-left"><span class="dot" style="background:#7c6fcd"></span>ITEM DETAILS</div>
+      <span style="font-size:10px;color:var(--text-3);font-family:var(--mono)">REVIEW &amp; EDIT</span>
+    </div>
+    <div class="form-area">
+      <div class="field">
+        <label>Description <span class="confidence-badge" id="conf-name" style="display:none"></span></label>
+        <input type="text" id="f-name" placeholder="e.g. Anti-Hu CD3 Super Bright 600">
+      </div>
+      <div class="field">
+        <label>P/N (Part / Cat #) <span class="confidence-badge" id="conf-part" style="display:none"></span></label>
+        <input type="text" id="f-part" placeholder="e.g. 63-0037-42">
+      </div>
+      <div class="field">
+        <label>SN / Lot Number <span class="confidence-badge" id="conf-lot" style="display:none"></span></label>
+        <input type="text" id="f-lot" placeholder="e.g. 3257346">
+      </div>
+      <div class="field">
+        <label>Quantity <span class="confidence-badge" id="conf-qty" style="display:none"></span></label>
+        <input type="text" id="f-qty" placeholder="e.g. 100 tests, 5 uL/test">
+      </div>
+      <div class="field">
+        <label>Storage Location</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+          <div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text-3);margin-bottom:4px;letter-spacing:.08em;">BLOCK</div>
+            <select id="f-loc-block" class="field-select" onchange="updateLabOptions()" style="width:100%;font-size:15px;padding:10px 8px;">
+              <option value="">--</option>
+              <option value="33">33</option>
+              <option value="35">35</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text-3);margin-bottom:4px;letter-spacing:.08em;">LAB</div>
+            <select id="f-loc-lab" class="field-select" style="width:100%;font-size:15px;padding:10px 8px;">
+              <option value="">--</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text-3);margin-bottom:4px;letter-spacing:.08em;">TEMP</div>
+            <select id="f-loc-temp" class="field-select" style="width:100%;font-size:15px;padding:10px 8px;">
+              <option value="">--</option>
+              <option value="RT">RT</option>
+              <option value="4&#8451;">4&#8451;</option>
+              <option value="-20&#8451;">-20&#8451;</option>
+              <option value="-80&#8451;">-80&#8451;</option>
+            </select>
+          </div>
+        </div>
+        <div id="locationPreview" style="font-family:var(--mono);font-size:11px;color:var(--accent);margin-top:5px;min-height:16px;"></div>
+      </div>
+      <div class="field">
+        <label>Ownership</label>
+        <input type="text" id="f-ownership" placeholder="e.g. Cell Therapy Team">
+      </div>
+      <div class="field">
+        <label>Expiry Date <span class="confidence-badge" id="conf-exp" style="display:none"></span></label>
+        <input type="text" id="f-exp" placeholder="e.g. 2030-06-04">
+      </div>
+      <div class="field">
+        <label>Data Entry Date</label>
+        <input type="text" id="f-entrydate" readonly style="background:var(--surface2);color:var(--text-3);">
+      </div>
+      <div class="field">
+        <label>Remark</label>
+        <textarea id="f-notes" placeholder="Additional observations, usage notes..."></textarea>
+      </div>
+      <div class="field" style="border-top:1px solid var(--border);padding-top:12px;margin-top:2px;">
+        <label style="color:var(--text-3);font-size:9px;">OTHER INFO (AI-extracted)</label>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Manufacturer</label>
+          <input type="text" id="f-mfr" placeholder="e.g. Invitrogen">
+        </div>
+        <div class="field">
+          <label>Storage Condition <span class="confidence-badge" id="conf-qty" style="display:none"></span></label>
+          <input type="text" id="f-storage" placeholder="e.g. 2-8&#176;C">
+        </div>
+      </div>
+      <button type="button" class="add-btn" onclick="addItem()" style="touch-action:manipulation;">+ Add to Inventory</button>
+    </div>
+  </div>
+
+</div><!-- /left-col -->
+
+<div class="right-col">
+
+  <!-- INVENTORY -->
+  <div class="panel">
+    <div class="inv-toolbar">
+      <div class="inv-toolbar-left">
+        <span class="dot"></span>
+        INVENTORY LOG
+        <span class="count-badge zero" id="itemCount">0</span>
+      </div>
+      <div class="inv-toolbar-right" id="invToolbarRight" style="display:none">
+        <button type="button" class="tb-btn" id="sortBtn" onclick="toggleSort()" title="Toggle sort order">&#8645; Newest first</button>
+        <button type="button" class="tb-btn" id="pageToggleBtn" onclick="togglePaging()" title="Toggle pagination">&#8718; All items</button>
+        <button type="button" class="btn-danger-sm" onclick="clearAll()">Clear All</button>
+      </div>
+    </div>
+    <div id="inventoryArea">
+      <div class="inv-empty"><div class="icon">&#129514;</div>Scan items to build your log.<br>All data stays in your browser.</div>
+    </div>
+    <div id="paginationBar" style="display:none"></div>
+  </div>
+
+  <!-- EXPORT -->
+  <div class="panel">
+    <div class="panel-header" onclick="toggleExport()" style="cursor:pointer">
+      <div class="panel-header-left"><span class="dot" style="background:#c084fc"></span>EXPORT &amp; SHARE</div>
+      <span class="collapse-icon open" id="exportCollapseIcon">&#9660;</span>
+    </div>
+    <div class="collapsible-body open" id="exportBody">
+      <div class="export-area">
+        <div class="field">
+          <label>Session Note (optional)</label>
+          <textarea id="sessionNote" placeholder="e.g. Lab 3B audit, Feb 2026. Checked by: Dr. Smith." style="min-height:52px"></textarea>
+        </div>
+        <div class="export-grid">
+          <button type="button" class="export-btn" onclick="copyExcel()">
+            <span class="export-btn-icon">📊</span>Copy for Excel
+          </button>
+          <button type="button" class="export-btn" onclick="downloadCSV()">
+            <span class="export-btn-icon">⬇️</span>Download CSV
+          </button>
+          <button type="button" class="export-btn" onclick="mailto()">
+            <span class="export-btn-icon">📧</span>Export Page
+          </button>
+
+        </div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--text-3);line-height:1.6;padding:4px 0">
+          &#128161; <strong>Copy for Excel</strong>: paste directly into Excel/Sheets.<br>
+          <strong>Export Page</strong>: opens table in browser &rarr; click Copy Table &rarr; paste into Excel.<br>
+          <strong>Download CSV</strong>: open in Excel, special chars (&#8451;, &trade;) display correctly.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /right-col -->
+</div><!-- /main -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+var inventory = [];
+var photos = new Array(4).fill(null);
+var scanTimestamps = [];
+var lastLocation = '';
+
+// Storage location helpers
+var LAB_OPTIONS = {
+  '33': ['BSL-2', 'GPL', 'IGA', 'IL', 'TFL', 'TRL'],
+  '35': ['BSL-2', 'GPL', 'IGA', 'IL', 'TFL', 'TRL1', 'TRL2']
+};
+
+function updateLabOptions() {
+  var block = document.getElementById('f-loc-block').value;
+  var labSel = document.getElementById('f-loc-lab');
+  var current = labSel.value;
+  labSel.innerHTML = '<option value="">--</option>';
+  if (block && LAB_OPTIONS[block]) {
+    LAB_OPTIONS[block].forEach(function(lab) {
+      var opt = document.createElement('option');
+      opt.value = lab;
+      opt.textContent = lab;
+      if (lab === current) opt.selected = true;
+      labSel.appendChild(opt);
+    });
+  }
+  updateLocationPreview();
+}
+
+function updateLocationPreview() {
+  var block = document.getElementById('f-loc-block').value;
+  var lab   = document.getElementById('f-loc-lab').value;
+  var temp  = document.getElementById('f-loc-temp').value;
+  var parts = [block, lab, temp].filter(function(v){ return v && v !== '--'; });
+  var preview = document.getElementById('locationPreview');
+  if (preview) preview.textContent = parts.length ? parts.join(' · ') : '';
+}
+
+function getLocationValue() {
+  var block = document.getElementById('f-loc-block').value;
+  var lab   = document.getElementById('f-loc-lab').value;
+  var temp  = document.getElementById('f-loc-temp').value;
+  var parts = [block, lab, temp].filter(function(v){ return v && v !== '--'; });
+  return parts.join(' ');
+}
+
+function setLocationFromString(loc) {
+  if (!loc) return;
+  var parts = loc.trim().split(/\s+/);
+  // parts[0]=block, parts[1]=lab, parts[2]=temp (may include degree symbol)
+  var block = parts[0] || '';
+  var temp  = parts[parts.length - 1] || '';
+  var lab   = parts.slice(1, parts.length - 1).join(' ') || '';
+  var blockSel = document.getElementById('f-loc-block');
+  if (blockSel) {
+    blockSel.value = block;
+    updateLabOptions();
+  }
+  var labSel = document.getElementById('f-loc-lab');
+  if (labSel) labSel.value = lab;
+  var tempSel = document.getElementById('f-loc-temp');
+  if (tempSel) tempSel.value = temp;
+  updateLocationPreview();
+}
+
+// Add onchange listeners to lab and temp dropdowns
+document.addEventListener('DOMContentLoaded', function() {
+  var labSel  = document.getElementById('f-loc-lab');
+  var tempSel = document.getElementById('f-loc-temp');
+  if (labSel)  labSel.addEventListener('change', updateLocationPreview);
+  if (tempSel) tempSel.addEventListener('change', updateLocationPreview);
+});
+ // [null | {base64,mimeType,previewUrl}] fixed 4 slots
+var apiPanelOpen = true;
+var apiKey = (function() { try { return localStorage.getItem('labscan_api_key') || ''; } catch(e) { return ''; } })();
+var savedModel = (function() { try { return localStorage.getItem('labscan_model') || 'gpt-4.1-mini'; } catch(e) { return 'gpt-4.1-mini'; } })();
+var exportOpen = true;
+var sortNewest = true;   // newest first by default
+var pagingOn = false;    // pagination off by default (show all)
+var currentPage = 0;
+var PAGE_SIZE = 3;
+
+// ── API Key ──────────────────────────────────────────────────────────────────
+function initApiPanel() {
+  // Restore saved model
+  var ms = document.getElementById('modelSelect');
+  if (ms && savedModel) ms.value = savedModel;
+
+  var tag = document.getElementById('providerTag');
+  if (apiKey) {
+    if (tag) tag.textContent = apiKey.indexOf('sk-')===0 ? 'AI \u00b7 OPENAI' : 'AI \u00b7 GEMINI';
+    document.getElementById('apiKey').value = apiKey;
+    document.getElementById('apiSavedView').style.display = 'flex';
+    document.getElementById('apiInputView').style.display = 'none';
+    document.getElementById('apiStatusChip').textContent = 'SAVED \u2713';
+    document.getElementById('apiStatusChip').style.color = 'var(--accent)';
+  } else {
+    document.getElementById('apiSavedView').style.display = 'none';
+    document.getElementById('apiInputView').style.display = 'block';
+    document.getElementById('apiStatusChip').textContent = 'NOT SET';
+  }
+}
+function toggleApi() { showApiInput(); }
+
+function showApiInput() {
+  document.getElementById('apiSavedView').style.display = 'none';
+  document.getElementById('apiInputView').style.display = 'block';
+  setTimeout(function() { var inp = document.getElementById('apiKey'); if (inp) inp.focus(); }, 150);
+}
+
+function saveKey() {
+  var inp = document.getElementById('apiKey');
+  if (inp) inp.blur();
+  var k = (inp ? inp.value : '').replace(/[\s\r\n]/g, '');
+  if (!k || k.length < 10) return showToast('Please paste your full API key (starts with AIza)');
+  try { localStorage.setItem('labscan_api_key', k);
+    var ms = document.getElementById('modelSelect');
+    if (ms) localStorage.setItem('labscan_model', ms.value);
+  } catch(ex) {}
+  apiKey = k;
+  document.getElementById('apiSavedView').style.display = 'flex';
+  document.getElementById('apiInputView').style.display = 'none';
+  document.getElementById('apiStatusChip').textContent = 'SAVED \u2713';
+  document.getElementById('apiStatusChip').style.color = 'var(--accent)';
+  var tag = document.getElementById('providerTag');
+  if (tag) tag.textContent = k.indexOf('sk-')===0 ? 'AI \u00b7 OPENAI' : 'AI \u00b7 GEMINI';
+  showToast('API key saved \u2713');
+}
+function autoSelectModel(val) {
+  var ms = document.getElementById('modelSelect');
+  if (!ms) return;
+  var v = val.trim();
+  if (v.indexOf('sk-') === 0 && ms.value.indexOf('gemini') === 0) {
+    ms.value = 'gpt-4.1-mini';  // switch to OpenAI default
+  } else if (v.indexOf('AIza') === 0 && ms.value.indexOf('gpt') === 0) {
+    ms.value = 'gemini-2.5-flash';  // switch to Gemini default
+  }
+}
+
+
+// ── Photo Grid ───────────────────────────────────────────────────────────────
+function addPhotosFromInput(files) {
+  if (!files || files.length === 0) return;
+  var current = photos.filter(function(p){return p!==null;}).length;
+  var slots = 4 - current;
+  if (slots <= 0) return showToast('Already have 4 photos \u2014 remove one first');
+  var toAdd = Math.min(files.length, slots);
+  if (files.length > slots) showToast('Adding ' + toAdd + ' of ' + files.length + ' (max 4 total)');
+  var added = 0;
+  Array.prototype.forEach.call(files, function(file, fi) {
+    if (fi >= toAdd) return;
+    var mimeType = file.type || 'image/jpeg';
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var img2 = new Image();
+      img2.onload = function() {
+        var canvas = document.createElement('canvas');
+        var maxDim = 800;
+        var w = img2.width, h = img2.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+          else       { w = Math.round(w * maxDim / h); h = maxDim; }
+        }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img2, 0, 0, w, h);
+        var compressed = canvas.toDataURL('image/jpeg', 0.72);
+        // Fill next available slot
+        for (var si = 0; si < 4; si++) {
+          if (photos[si] === null) {
+            photos[si] = { base64: compressed.split(',')[1], mimeType: 'image/jpeg', previewUrl: compressed };
+            break;
+          }
+        }
+        added++;
+        renderPhotoStrip();
+        document.getElementById('quotaNote').style.display = 'none';
+        setStatus('');
+      };
+      img2.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function removePhoto(idx) {
+  photos[idx] = null;
+  renderPhotoStrip();
+  setStatus('');
+}
+
+function clearPhotos() {
+  photos = new Array(4).fill(null);
+  renderPhotoStrip();
+  setStatus('');
+}
+
+function renderPhotoStrip() {
+  var filled = photos.filter(function(p){return p!==null;});
+  var strip = document.getElementById('photoStrip');
+  var addBtns = document.getElementById('photoAddBtns');
+  var hint = document.getElementById('photoHint');
+  document.getElementById('scanBtn').disabled = filled.length === 0;
+
+  if (filled.length === 0) {
+    strip.style.display = 'none';
+    addBtns.style.display = 'grid';
+    hint.textContent = 'Select 1\u20134 photos at once \u2014 great for curved labels';
+    return;
+  }
+
+  // Show thumbnails
+  strip.style.display = 'flex';
+  strip.innerHTML = photos.map(function(p, i) {
+    if (!p) return '';
+    return '<div style="position:relative;width:calc(50% - 4px);border-radius:5px;overflow:hidden;border:1px solid var(--border);flex-shrink:0;">'
+      + '<img src="' + p.previewUrl + '" style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block;">'
+      + '<div style="position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:3px 5px;background:rgba(26,24,20,0.55);">'
+      + '<span style="color:#f4f2ec;font-family:var(--mono);font-size:10px;">Photo ' + (i+1) + '</span>'
+      + '<button onclick="removePhoto(' + i + ')" style="background:none;border:none;color:#f4f2ec;font-size:14px;cursor:pointer;padding:0;line-height:1;">\u2715</button>'
+      + '</div></div>';
+  }).join('');
+
+  // Show add-more row if < 4
+  if (filled.length < 4) {
+    addBtns.style.display = 'grid';
+    hint.textContent = filled.length + ' photo' + (filled.length>1?'s':'') + ' ready \u2014 add more or tap Scan';
+  } else {
+    addBtns.style.display = 'none';
+    hint.textContent = '4 photos ready \u2014 tap \u2715 on any to remove';
+  }
+}
+
+// ── Status ───────────────────────────────────────────────────────────────────
+function setStatus(type, text) {
+  var bar = document.getElementById('statusBar');
+  bar.className = 'status-bar';
+  if (!type) { bar.style.display = 'none'; return; }
+  bar.classList.add(type);
+  bar.style.display = 'flex';
+  document.getElementById('statusSpinner').style.display = type==='scanning'?'block':'none';
+  document.getElementById('statusText').textContent = text;
+}
+
+// ── Scan ─────────────────────────────────────────────────────────────────────
+async function scanImage() {
+  var key = document.getElementById('apiKey').value.trim() || apiKey;
+  if (!key) return showToast('Please save your API key first');
+  var filledPhotos = photos.filter(function(p){return p!==null;});
+  if (filledPhotos.length === 0) return showToast('Please add at least one photo');
+
+  document.getElementById('scanBtn').disabled = true;
+  document.getElementById('quotaNote').style.display = 'none';
+  
+  // Track scans per minute to warn about rate limit
+  var now = Date.now();
+  scanTimestamps = (scanTimestamps || []).filter(function(t){ return now - t < 60000; });
+  scanTimestamps.push(now);
+  var rpmUsed = scanTimestamps.length;
+  var rpmNote = rpmUsed >= 8 ? ' (⚠️ ' + rpmUsed + '/10 per min)' : '';
+  
+  setStatus('scanning', 'Analyzing ' + filledPhotos.length + ' photo' + (filledPhotos.length>1?'s':'') + ' with AI...' + rpmNote);
+
+  var prompt = 'You are a lab inventory assistant. Analyze ALL provided images of the SAME lab item and extract label information. Photos show different sides/angles of one item.\n\nReturn ONLY valid JSON on a SINGLE LINE. No markdown, no explanation, no newlines inside strings:\n{"name":"","part_number":"","lot_number":"","expiry":"","quantity":"","manufacturer":"","storage":"","notes":"","confidence":{"name":"high|medium|low","part_number":"high|medium|low","lot_number":"high|medium|low","expiry":"high|medium|low","quantity":"high|medium|low"}}\n\nCRITICAL RULES:\n- REF or Catalog# field: extract ONLY the alphanumeric code (e.g. "63-0037-42" not "REF 63-0037-42")\n- LOT field: extract ONLY the number (e.g. \"3257346\" not \"LOT 3257346\"). CRITICAL: read the LAST digit with extreme care - on curved tubes, 6 and 4 look similar (6 has a closed loop at top, 4 has an open corner). Invitrogen/eBioscience lots are 7 digits. Common confusions: 6/4, 3/8, 0/6, 1/7. When uncertain between 4 and 6 at end of lot, prefer 6\n- name: full product name including fluorochrome/conjugate (e.g. "Anti-Hu CD3 Super Bright 600")\n- quantity: volume AND test count if both visible (e.g. "100 tests, 5 uL/test")\n- expiry: date as printed (e.g. "2030-06-04")\n- manufacturer: company name only, no address\n- storage: temperature/conditions only\n- notes: clone name, FOR RESEARCH USE ONLY, license notes, hazard symbols\n- Do NOT include field labels in values (no "REF", "LOT", "Store at:" prefixes)\n- If same field appears in multiple photos, prefer the clearest most complete version\n- NO newlines inside any string value';
+
+  try {
+    var parts = filledPhotos.map(function(p) {
+      return { inline_data: { mime_type: p.mimeType, data: p.base64 } };
+    });
+    parts.push({ text: prompt });
+
+    // Auto-detect provider by key prefix: sk-... = OpenAI, AIza... = Gemini
+    var isOpenAI = key.indexOf('sk-') === 0;
+    var url, reqBody, reqHeaders;
+
+    if (isOpenAI) {
+      url = 'https://api.openai.com/v1/chat/completions';
+      reqHeaders = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key };
+      var oaiContent = parts.map(function(p) {
+        if (p.inline_data) {
+          return { type: 'image_url', image_url: {
+            url: 'data:' + p.inline_data.mime_type + ';base64,' + p.inline_data.data,
+            detail: 'low'
+          }};
+        }
+        return { type: 'text', text: p.text };
+      });
+      var selectedModel = (function(){
+        var ms = document.getElementById('modelSelect');
+        var v = ms ? ms.value : 'gpt-4o-mini';
+        try { localStorage.setItem('labscan_model', v); } catch(e){}
+        return v;
+      })();
+      // GPT-5 series requires max_completion_tokens; older models use max_tokens
+      var isGpt5 = selectedModel.indexOf('gpt-5') === 0;
+      var tokenParam = isGpt5 ? 'max_completion_tokens' : 'max_tokens';
+      reqBody = { model: selectedModel, messages: [{ role: 'user', content: oaiContent }],
+        temperature: 0.1 };
+      reqBody[tokenParam] = 2048;
+    } else {
+      var geminiModel = (function(){
+        var ms = document.getElementById('modelSelect');
+        var v = ms ? ms.value : 'gemini-2.5-flash';
+        return (v.indexOf('gemini') === 0) ? v : 'gemini-2.5-flash';
+      })();
+      url = 'https://generativelanguage.googleapis.com/v1beta/models/' + geminiModel + ':generateContent?key=' + key;
+      reqHeaders = { 'Content-Type': 'application/json' };
+      reqBody = { contents: [{ parts: parts }], generationConfig: { temperature: 0.1, maxOutputTokens: 2048 } };
+    }
+
+    // Update provider label in header
+    var ptag = document.getElementById('providerTag');
+    if (ptag) ptag.textContent = isOpenAI ? 'AI · OPENAI' : 'AI · GEMINI';
+
+    var resp = await fetch(url, { method: 'POST', headers: reqHeaders, body: JSON.stringify(reqBody) });
+    var data = await resp.json();
+
+    if (!resp.ok) {
+      var msg = (data.error && data.error.message) ? data.error.message
+        : (data.error && data.error.code ? data.error.code : ('HTTP ' + resp.status));
+      var isQ = resp.status === 429
+        || msg.indexOf('quota') !== -1 || msg.indexOf('RESOURCE_EXHAUSTED') !== -1
+        || msg.indexOf('limit: 0') !== -1 || msg.indexOf('insufficient_quota') !== -1
+        || msg.indexOf('rate_limit') !== -1;
+      if (isQ) {
+        setStatus('error', 'Quota or rate limit reached — see note below.');
+        document.getElementById('quotaNote').style.display = 'block';
+      } else {
+        setStatus('error', 'Error: ' + msg);
+      }
+      document.getElementById('scanBtn').disabled = false;
+      return;
+    }
+
+    // Parse response per provider
+    var rawText;
+    if (isOpenAI) {
+      rawText = data.choices && data.choices[0] && data.choices[0].message
+        ? data.choices[0].message.content : '';
+    } else {
+      rawText = data.candidates && data.candidates[0] && data.candidates[0].content &&
+        data.candidates[0].content.parts && data.candidates[0].content.parts[0]
+        ? data.candidates[0].content.parts[0].text : '';
+    }
+    if (!rawText) throw new Error('Empty response. Check your API key and ensure the key matches the provider (OpenAI: sk-..., Gemini: AIza...).');
+
+    var jStart = rawText.indexOf('{');
+    var jEnd = rawText.lastIndexOf('}');
+    if (jStart===-1||jEnd===-1) throw new Error('No JSON in response.');
+    var json = JSON.parse(rawText.substring(jStart, jEnd+1));
+    fillForm(json);
+    setStatus('done', '\u2713 Extracted from ' + filledPhotos.length + ' photo' + (filledPhotos.length>1?'s':'') + ' \u2014 review below');
+
+  } catch(e) {
+    var msg = e.message || 'Unknown error';
+    if (msg.indexOf('Failed to fetch') !== -1 || msg.indexOf('NetworkError') !== -1 || msg.indexOf('Load failed') !== -1) {
+      msg = 'Network error. On iPhone: make sure you opened this file in Safari (not the Files app). Check internet is on.';
+    }
+    setStatus('error', 'Error: ' + msg);
+  }
+  document.getElementById('scanBtn').disabled = false;
+}
+
+// ── Form ─────────────────────────────────────────────────────────────────────
+function confClass(c){return c==='high'?'conf-high':c==='medium'?'conf-med':'conf-low'}
+function showBadge(id, conf) {
+  var el = document.getElementById(id);
+  if (conf) { el.textContent=conf.toUpperCase(); el.className='confidence-badge '+confClass(conf); el.style.display='inline-block'; }
+  else el.style.display='none';
+}
+
+// Date normalisation — converts any date format to dd-mmm-yyyy
+function normDate(raw) {
+  if (!raw || raw === 'N/A' || raw.trim() === '') return raw;
+  var s = raw.trim();
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var MON_MAP = {};
+  MONTHS.forEach(function(m,i){ MON_MAP[m.toLowerCase()] = i+1; });
+  // Full month names
+  var FULL = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+  FULL.forEach(function(m,i){ MON_MAP[m] = i+1; });
+
+  function pad(n){ return n < 10 ? '0'+n : ''+n; }
+  function fmt(d,m,y){ return pad(d)+'-'+MONTHS[m-1]+'-'+y; }
+
+  // Try various patterns
+  var m;
+
+  // Already correct: 04-Jun-2030 or 4-Jun-2030
+  if ((m = s.match(/^(\d{1,2})-([A-Za-z]{3})-((19|20)\d{2})$/))) {
+    var mon = MON_MAP[m[2].toLowerCase()];
+    if (mon) return fmt(parseInt(m[1]), mon, m[3]);
+  }
+
+  // yyyy-mm-dd or yyyy/mm/dd
+  if ((m = s.match(/^((19|20)\d{2})[-/](\d{1,2})[-/](\d{1,2})$/))) {
+    return fmt(parseInt(m[4]), parseInt(m[3]), m[1]);
+  }
+
+  // dd-mm-yyyy or dd/mm/yyyy
+  if ((m = s.match(/^(\d{1,2})[-/](\d{1,2})[-/]((19|20)\d{2})$/))) {
+    return fmt(parseInt(m[1]), parseInt(m[2]), m[3]);
+  }
+
+  // mm/yyyy or mm-yyyy
+  if ((m = s.match(/^(\d{1,2})[-/]((19|20)\d{2})$/))) {
+    return fmt(1, parseInt(m[1]), m[2]);
+  }
+
+  // yyyy-mm or yyyy/mm
+  if ((m = s.match(/^((19|20)\d{2})[-/](\d{1,2})$/))) {
+    return fmt(1, parseInt(m[3]), m[1]);
+  }
+
+  // dd Mon yyyy or d Mon yyyy (e.g. 4 Jun 2030, 04 June 2030)
+  if ((m = s.match(/^(\d{1,2})\s+([A-Za-z]+)\s+((19|20)\d{2})$/))) {
+    var mon2 = MON_MAP[m[2].toLowerCase()];
+    if (mon2) return fmt(parseInt(m[1]), mon2, m[3]);
+  }
+
+  // Mon yyyy or Month yyyy (e.g. Jun 2030, June 2030)
+  if ((m = s.match(/^([A-Za-z]+)\s+((19|20)\d{2})$/))) {
+    var mon3 = MON_MAP[m[1].toLowerCase()];
+    if (mon3) return fmt(1, mon3, m[2]);
+  }
+
+  // yyyy Mon (e.g. 2030 Jun)
+  if ((m = s.match(/^((19|20)\d{2})\s+([A-Za-z]+)$/))) {
+    var mon4 = MON_MAP[m[3].toLowerCase()];
+    if (mon4) return fmt(1, mon4, m[1]);
+  }
+
+  // dd/Mon/yyyy or dd-Mon-yyyy with full month (04/June/2030)
+  if ((m = s.match(/^(\d{1,2})[-/]([A-Za-z]+)[-/]((19|20)\d{2})$/))) {
+    var mon5 = MON_MAP[m[2].toLowerCase()];
+    if (mon5) return fmt(parseInt(m[1]), mon5, m[3]);
+  }
+
+  // Couldn't parse — return raw so user can correct
+  return s;
+}
+function fillForm(d) {
+  function clean(v, prefixes) {
+    if (!v || !v.trim()) return 'N/A';
+    var s = v.trim();
+    if (prefixes) {
+      prefixes.forEach(function(p) {
+        var re = new RegExp('^' + p.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '\\s*:?\\s*', 'i');
+        s = s.replace(re, '');
+      });
+    }
+    return s.trim() || 'N/A';
+  }
+  document.getElementById('f-name').value    = clean(d.name);
+  document.getElementById('f-part').value    = clean(d.part_number, ['REF','CAT','Cat#','Cat No','Catalog']);
+  document.getElementById('f-lot').value     = clean(d.lot_number,  ['LOT','Lot No','Lot#','Lot Number','SN']);
+  document.getElementById('f-exp').value     = normDate(clean(d.expiry, ['EXP','Expiry','Expiration','Use by','BB','Exp.']));
+  document.getElementById('f-qty').value     = clean(d.quantity,    ['QTY','Qty','Quantity','Contents']);
+  document.getElementById('f-mfr').value     = clean(d.manufacturer,['MFR','Mfr','Manufactured by']);
+  document.getElementById('f-storage').value = clean(d.storage,     ['Store at','Storage','Store','Keep at']);
+  document.getElementById('f-notes').value   = '';  // Remark is user-entered, don't auto-fill
+  // Set today's date for data entry
+  document.getElementById('f-entrydate').value = (function(){
+    var now = new Date();
+    var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var d = now.getDate(); var m = MONTHS[now.getMonth()]; var y = now.getFullYear();
+    return (d<10?'0'+d:d)+'-'+m+'-'+y;
+  })();
+  var c = d.confidence || {};
+  showBadge('conf-name',c.name); showBadge('conf-part',c.part_number);
+  showBadge('conf-lot',c.lot_number); showBadge('conf-exp',c.expiry);
+  setTimeout(function(){document.getElementById('f-name').scrollIntoView({behavior:'smooth',block:'nearest'});},200);
+}
+function clearForm() {
+  ['f-name','f-part','f-lot','f-exp','f-qty','f-mfr','f-storage','f-ownership','f-notes','f-entrydate'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  // Reset location (but will be re-set by setLocationFromString below)
+  ['f-loc-block','f-loc-lab','f-loc-temp'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.value='';
+  });
+  var lp=document.getElementById('locationPreview'); if(lp) lp.textContent='';
+  ['conf-name','conf-part','conf-lot','conf-exp'].forEach(function(id){
+    document.getElementById(id).style.display='none';
+  });
+  clearPhotos(); setStatus('');
+  // Auto-fill last used location
+  if (lastLocation) setLocationFromString(lastLocation);
+}
+
+// ── Inventory ─────────────────────────────────────────────────────────────────
+function addItem() {
+  var entryDate = document.getElementById('f-entrydate').value.trim() ||
+    (function(){
+    var now = new Date();
+    var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var d = now.getDate(); var m = MONTHS[now.getMonth()]; var y = now.getFullYear();
+    return (d<10?'0'+d:d)+'-'+m+'-'+y;
+  })();
+  var item = {
+    id: Date.now(),
+    name: document.getElementById('f-name').value.trim(),
+    part: document.getElementById('f-part').value.trim(),
+    lot: document.getElementById('f-lot').value.trim(),
+    qty: document.getElementById('f-qty').value.trim(),
+    locBlock: document.getElementById('f-loc-block').value.trim(),
+    locLab: document.getElementById('f-loc-lab').value.trim(),
+    locTemp: document.getElementById('f-loc-temp').value.trim(),
+    location: getLocationValue(),
+    ownership: document.getElementById('f-ownership').value.trim(),
+    expiry: document.getElementById('f-exp').value.trim(),
+    entrydate: entryDate,
+    notes: document.getElementById('f-notes').value.trim(),
+    manufacturer: document.getElementById('f-mfr').value.trim(),
+    storage: document.getElementById('f-storage').value.trim(),
+    timestamp: new Date().toLocaleString()
+  };
+  if (!item.name) return showToast('Description is required');
+  inventory.push(item);
+  if (item.locBlock||item.locLab||item.locTemp) lastLocation = item.location;
+  currentPage = 0;
+  renderInventory();
+  clearForm();
+  showToast('Item added \u2713');
+}
+
+function toggleSort() {
+  sortNewest = !sortNewest;
+  currentPage = 0;
+  document.getElementById('sortBtn').textContent = sortNewest ? '\u21C5 Newest first' : '\u21C5 Oldest first';
+  renderInventory();
+}
+
+function togglePaging() {
+  pagingOn = !pagingOn;
+  currentPage = 0;
+  var btn = document.getElementById('pageToggleBtn');
+  btn.textContent = pagingOn ? '\u22A1 3 per page' : '\u22A1 All items';
+  btn.classList.toggle('active', pagingOn);
+  renderInventory();
+}
+
+function renderInventory() {
+  var area = document.getElementById('inventoryArea');
+  var count = document.getElementById('itemCount');
+  var toolbar = document.getElementById('invToolbarRight');
+  var pagBar = document.getElementById('paginationBar');
+
+  count.textContent = inventory.length;
+  count.className = 'count-badge' + (inventory.length===0?' zero':'');
+  toolbar.style.display = inventory.length>0 ? 'flex' : 'none';
+
+  if (inventory.length===0) {
+    area.innerHTML = '<div class="inv-empty"><div class="icon">&#129514;</div>Scan items to build your log.<br>All data stays in your browser.</div>';
+    pagBar.style.display = 'none';
+    return;
+  }
+
+  // Sort
+  var sorted = inventory.slice();
+  if (sortNewest) sorted.reverse();
+
+  // Paginate
+  var toShow;
+  if (pagingOn) {
+    var totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+    if (currentPage >= totalPages) currentPage = totalPages - 1;
+    toShow = sorted.slice(currentPage * PAGE_SIZE, (currentPage+1) * PAGE_SIZE);
+    // Render pagination
+    var pagHtml = '<div class="pagination">';
+    pagHtml += '<button class="page-btn" onclick="goPage(' + (currentPage-1) + ')" ' + (currentPage===0?'disabled':'') + '>&lsaquo;</button>';
+    for (var pp=0; pp<totalPages; pp++) {
+      pagHtml += '<button class="page-btn' + (pp===currentPage?' active':'') + '" onclick="goPage(' + pp + ')">' + (pp+1) + '</button>';
+    }
+    pagHtml += '<button class="page-btn" onclick="goPage(' + (currentPage+1) + ')" ' + (currentPage===totalPages-1?'disabled':'') + '>&rsaquo;</button>';
+    pagHtml += '<span style="margin-left:4px">' + (currentPage*PAGE_SIZE+1) + '&ndash;' + Math.min((currentPage+1)*PAGE_SIZE, sorted.length) + ' of ' + sorted.length + '</span>';
+    pagHtml += '</div>';
+    pagBar.innerHTML = pagHtml;
+    pagBar.style.display = 'block';
+  } else {
+    toShow = sorted;
+    pagBar.style.display = 'none';
+  }
+
+    // Render items
+  area.innerHTML = toShow.map(function(item) {
+    var globalIdx = inventory.indexOf(item);
+    var displayNum = sortNewest ? (inventory.length - globalIdx) : (globalIdx + 1);
+    var tags = [];
+    if (item.part)      tags.push('<span class="inv-tag"><span class="tag-key">P/N</span>&nbsp;' + esc(item.part) + '</span>');
+    if (item.lot)       tags.push('<span class="inv-tag"><span class="tag-key">SN/Lot</span>&nbsp;' + esc(item.lot) + '</span>');
+    if (item.expiry)    tags.push('<span class="inv-tag"><span class="tag-key">Exp</span>&nbsp;' + esc(item.expiry) + '</span>');
+    if (item.qty)       tags.push('<span class="inv-tag">' + esc(item.qty) + '</span>');
+    if (item.locBlock) tags.push('<span class="inv-tag"><span class="tag-key">Blk</span>&nbsp;' + esc(item.locBlock) + '</span>');
+    if (item.locLab)   tags.push('<span class="inv-tag"><span class="tag-key">Lab</span>&nbsp;' + esc(item.locLab) + '</span>');
+    if (item.locTemp)  tags.push('<span class="inv-tag"><span class="tag-key">Temp</span>&nbsp;' + esc(item.locTemp) + '</span>');
+    if (item.ownership) tags.push('<span class="inv-tag"><span class="tag-key">Owner</span>&nbsp;' + esc(item.ownership) + '</span>');
+    if (item.entrydate) tags.push('<span class="inv-tag"><span class="tag-key">Entered</span>&nbsp;' + esc(item.entrydate) + '</span>');
+    return '<div class="inv-card">'
+      + '<div class="inv-card-top">'
+      + '<div><div class="inv-num">#' + displayNum + (item.manufacturer ? ' &middot; ' + esc(item.manufacturer) : '') + '</div>'
+      + '<div class="inv-name">' + esc(item.name) + '</div></div>'
+      + '<button type="button" class="inv-remove" onclick="removeItem(' + item.id + ')">✕</button>'
+      + '</div>'
+      + (tags.length ? '<div class="inv-tags">' + tags.join('') + '</div>' : '')
+      + (item.notes ? '<div class="inv-note">&#128221; ' + esc(item.notes) + '</div>' : '')
+      + '</div>';
+  }).join('');
+}
+
+function goPage(p) {
+  currentPage = p;
+  renderInventory();
+  document.getElementById('inventoryArea').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function removeItem(id) {
+  inventory = inventory.filter(function(i){return i.id!==id;});
+  renderInventory();
+}
+function clearAll() {
+  if (!confirm('Clear all inventory entries?')) return;
+  inventory = []; currentPage = 0; renderInventory();
+}
+function toggleExport() {
+  exportOpen = !exportOpen;
+  var body = document.getElementById('exportBody');
+  var icon = document.getElementById('exportCollapseIcon');
+  body.style.display = exportOpen ? 'block' : 'none';
+  if (exportOpen) { body.classList.add('open'); icon.classList.add('open'); }
+  else { body.classList.remove('open'); icon.classList.remove('open'); }
+}
+function esc(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+// Tab-separated — pastes perfectly into Excel/Sheets
+function tsvText() {
+  var note = document.getElementById('sessionNote').value.trim();
+  var date = new Date().toLocaleString();
+  var lines = [];
+  if (note) lines.push('Session note:\t' + note);
+  lines.push('Exported:\t' + date);
+  lines.push('');
+  lines.push(['#','Description','P/N','SN/Lot Number','Quantity','Block','Lab','Temperature','Ownership','Expiry Date','Data Entry Date','Remark','Manufacturer','Storage Condition','Added'].join('\t'));
+  inventory.forEach(function(item, i) {
+    lines.push([i+1, item.name, item.part, item.lot, item.qty,
+      item.locBlock||'', item.locLab||'', item.locTemp||'',
+      item.ownership, item.expiry, item.entrydate,
+      item.notes, item.manufacturer, item.storage, item.timestamp
+    ].map(function(v){return (v||'').toString().replace(/\t/g,' ').replace(/\n/g,' ');}).join('\t'));
+  });
+  return lines.join('\n');
+}
+
+function csvText() {
+  var note = document.getElementById('sessionNote').value.trim();
+  var headers = ['#','Description','P/N','SN/Lot Number','Quantity','Block','Lab','Temperature','Ownership','Expiry Date','Data Entry Date','Remark','Manufacturer','Storage Condition','Added'];
+  var rows = inventory.map(function(item, i) {
+    return [i+1, item.name, item.part, item.lot, item.qty,
+      item.locBlock||'', item.locLab||'', item.locTemp||'',
+      item.ownership, item.expiry, item.entrydate,
+      item.notes, item.manufacturer, item.storage, item.timestamp]
+      .map(function(v){return '"'+(v||'').toString().replace(/"/g,'""')+'"';}).join(',');
+  });
+  var lines = [];
+  if (note) lines.push('"Session note: ' + note.replace(/"/g,'""') + '"');
+  lines.push('"Exported: ' + new Date().toLocaleString() + '"');
+  lines.push(headers.map(function(h){return '"'+h+'"';}).join(','));
+  return lines.concat(rows).join('\n');
+}
+
+function copyExcel() {
+  if (!inventory.length) return showToast('No items yet');
+  navigator.clipboard.writeText(tsvText()).then(function(){
+    showToast('Copied! Paste directly into Excel \u2713');
+  });
+}
+
+function downloadCSV() {
+  if (!inventory.length) return showToast('No items yet');
+  var bom = '\uFEFF';  // UTF-8 BOM — tells Excel to use UTF-8 (fixes ℃, ™ etc)
+  var blob = new Blob([bom + csvText()], {type:'text/csv;charset=utf-8;'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'lab-inventory-' + Date.now() + '.csv';
+  a.click();
+  showToast('CSV downloaded \u2713');
+}
+
+function mailto() {
+  if (!inventory.length) return showToast('No items yet');
+  var note = document.getElementById('sessionNote').value.trim();
+  var date = new Date().toLocaleString();
+
+  // Same columns as Copy for Excel / CSV
+  var cols = ['#','Description','P/N','SN/Lot Number','Quantity','Block','Lab','Temperature','Ownership','Expiry Date','Data Entry Date','Remark','Manufacturer','Storage Condition'];
+
+  function getRow(item, i) {
+    return [i+1, item.name||'N/A', item.part||'', item.lot||'', item.qty||'',
+      item.locBlock||'', item.locLab||'', item.locTemp||'',
+      item.ownership||'', item.expiry||'', item.entrydate||'',
+      item.notes||'', item.manufacturer||'', item.storage||''];
+  }
+
+  // HTML table — default tab, pastes directly into Excel with correct columns
+  var thStyle = 'padding:6px 8px;border:1px solid #999;background:#e8f0e8;font-family:Arial,sans-serif;font-size:12px;white-space:nowrap;text-align:left;';
+  var tdStyle = 'padding:5px 8px;border:1px solid #ccc;font-family:Arial,sans-serif;font-size:12px;vertical-align:top;';
+  var headerRow = '<tr>' + cols.map(function(c){return '<th style="' + thStyle + '">' + escHtml(c) + '</th>';}).join('') + '</tr>';
+  var bodyRows = inventory.map(function(item, i) {
+    return '<tr>' + getRow(item, i).map(function(v, ci) {
+      return '<td style="' + tdStyle + (ci===0?'text-align:center;color:#888;':'')
+        + '">' + escHtml(String(v)) + '</td>';
+    }).join('') + '</tr>';
+  }).join('');
+
+  var win = window.open('', '_blank', 'width=1000,height=680,menubar=no,toolbar=no');
+  if (!win) { showToast('Allow popups for export page'); return; }
+
+  win.document.write(
+    '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>LabScan Export</title>'
+    + '<style>'
+    + '*{box-sizing:border-box}'
+    + 'body{margin:0;font-family:Arial,sans-serif;font-size:13px;background:#f7f7f7;}'
+    + '.bar{background:#1a6b3c;color:#fff;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:0;z-index:10;}'
+    + '.bar h2{margin:0;font-size:14px;font-weight:700;}'
+    + '.copy-btn{background:#fff;color:#1a6b3c;border:2px solid #fff;border-radius:4px;padding:7px 16px;font-size:13px;font-weight:700;cursor:pointer;}'
+    + '.copy-btn:hover{background:#e8f5ee;}'
+    + '.tip{font-size:12px;color:#555;margin:10px 16px 0;line-height:1.6;}'
+    + '.tbl-wrap{padding:12px 16px;overflow-x:auto;}'
+    + 'table{border-collapse:collapse;}'
+    + '</style></head><body>'
+    + '<div class="bar">'
+    + '<h2>&#128196; LabScan Export &mdash; ' + escHtml(date) + (note ? ' &mdash; ' + escHtml(note) : '') + '</h2>'
+    + '<button class="copy-btn" onclick="copyTable()">&#9651; Copy Table &rarr; Paste into Excel</button>'
+    + '</div>'
+    + '<p class="tip">&#128161; <b>To import to Excel:</b> click &ldquo;Copy Table&rdquo; above &rarr; open Excel &rarr; Ctrl+V (or Cmd+V). Columns land automatically, no Text-to-Columns needed.</p>'
+    + '<div class="tbl-wrap"><table id="invTable">'
+    + '<thead>' + headerRow + '</thead>'
+    + '<tbody>' + bodyRows + '</tbody>'
+    + '</table></div>'
+    + '<script>'
+    + 'function copyTable(){'
+    + '  var t=document.getElementById("invTable");'
+    + '  var r=document.createRange();r.selectNode(t);'
+    + '  var s=window.getSelection();s.removeAllRanges();s.addRange(r);'
+    + '  document.execCommand("copy");'
+    + '  alert("Table copied! Paste into Excel — columns will land automatically.");'
+    + '}'
+    + '<\/script>'
+    + '</body></html>'
+  );
+  win.document.close();
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function exportJSON() {
+  if (!inventory.length) return showToast('No items yet');
+  var note = document.getElementById('sessionNote').value.trim();
+  var payload = {exported: new Date().toISOString(), note: note, items: inventory};
+  var blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'lab-inventory-' + Date.now() + '.json';
+  a.click();
+}
+
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function(){t.classList.remove('show');},2800);
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+initApiPanel();
+renderPhotoStrip();
+renderInventory();
+
+// Tap logo 3x quickly to show debug info
+var _dtaps=0,_dtimer=null;
+document.getElementById('logoBtn').addEventListener('click',function(){
+  _dtaps++; clearTimeout(_dtimer);
+  _dtimer=setTimeout(function(){_dtaps=0;},800);
+  if(_dtaps>=3){
+    _dtaps=0;
+    var inp=document.getElementById('apiKey');
+    var ls='?'; try{ls=localStorage?'ok':'no';}catch(e){ls='blocked';}
+    var msg='JS OK | apiKey:'+apiKey.length+'c | input:'+(inp?inp.value.length:0)+'c | ls:'+ls;
+    var b=document.getElementById('debugBanner');
+    b.textContent=msg; b.style.display='block';
+    setTimeout(function(){b.style.display='none';},8000);
+  }
+});
+// Pre-fill today's date
+(function() {
+  var el = document.getElementById('f-entrydate');
+  if (el) el.value = (function(){
+    var now = new Date();
+    var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var d = now.getDate(); var m = MONTHS[now.getMonth()]; var y = now.getFullYear();
+    return (d<10?'0'+d:d)+'-'+m+'-'+y;
+  })();
+})();
+</script>
+</body>
+</html>
